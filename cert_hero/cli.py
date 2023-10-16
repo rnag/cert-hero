@@ -2,16 +2,21 @@
 import argparse
 import sys
 
+from . import cert_please
+
 
 def main():
     """Console script for cert_hero."""
-    parser = argparse.ArgumentParser()
-    parser.add_argument('_', nargs='*')
+    parser = argparse.ArgumentParser(prog='ch', description='Retrieve the SSL certificate(s) for one or more given host')
+    parser.add_argument('hosts', nargs='*')
     args = parser.parse_args()
 
-    print("Arguments: " + str(args._))
-    print("Replace this message by putting your code into "
-          "cert_hero.cli.main")
+    for host in args.hosts:
+        cert = cert_please(host)
+        print(f'=== {host} ===')
+        print(cert)
+        print()
+
     return 0
 
 

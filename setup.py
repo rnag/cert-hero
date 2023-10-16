@@ -1,6 +1,7 @@
 """The setup script."""
 import pathlib
 
+from pkg_resources import parse_requirements
 from setuptools import setup, find_packages
 
 
@@ -10,12 +11,18 @@ package_name = 'cert_hero'
 
 packages = find_packages(include=[package_name, f'{package_name}.*'])
 
-requires = [ ]
+requires = [
+    'asn1crypto>=1.5.1,<2',
+]
 
-test_requirements = [
-    'pytest~=7.0.1',
-    'pytest-cov~=3.0.0',
-    'pytest-runner~=5.3.1',]
+test_requires = [
+    'pytest==7.4.2',
+    'pytest-cov==4.1.0',
+    'pytest-runner==6.0.0',
+]
+
+with (here / 'requirements-dev.txt').open() as requires_dev_txt:
+    dev_requires = [str(req) for req in parse_requirements(requires_dev_txt)]
 
 about = {}
 exec((here / package_name / '__version__.py').read_text(), about)
@@ -41,7 +48,7 @@ setup(
     },
     license=about['__license__'],
     # TODO add more relevant keywords as needed
-    keywords=['cert-hero'],
+    keywords=['cert-hero', 'cert', 'ssl', 'certificate', 'host cert'],
     classifiers=[
         # Ref: https://pypi.org/classifiers/
         # 'Development Status :: 5 - Production/Stable',
@@ -56,15 +63,18 @@ setup(
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
         'Programming Language :: Python :: 3.12',
-        'Programming Language :: Python'
-],
-    python_requires = '>=3.6',
+        'Programming Language :: Python',
+    ],
+    python_requires='>=3.6',
     entry_points={
         'console_scripts': [
-            'cert-hero=cert_hero.cli:main',
+            'ch=cert_hero.cli:main',
         ],
     },
+    extras_require={
+        'dev': dev_requires,
+    },
     test_suite='tests',
-    tests_require=test_requirements,
+    tests_require=test_requires,
     zip_safe=False
 )
