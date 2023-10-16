@@ -23,7 +23,7 @@ Cert Hero
 
 
 
-Python Stand-alone Library to Download SSL Certificate for *Any Host™*
+Python Stand-alone Library to Download the SSL Certificate for *Any Host™*
 
 
 * Free software: MIT license
