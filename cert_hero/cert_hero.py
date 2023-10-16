@@ -1,28 +1,22 @@
 """Main module."""
+from __future__ import annotations
 
 import ssl
 import socket
+
+from datetime import datetime, date
+from json import dumps
 from logging import getLogger
 
 from asn1crypto.x509 import Certificate
 from asn1crypto.keys import PublicKeyInfo
-from datetime import datetime, date
 
+
+### Utilities ###
 
 LOG = getLogger('cert_hero')
 
-
-def create_ssl_context() -> ssl.SSLContext:
-    # upgrade the socket to SSL without checking the certificate
-    # !!!! don't transfer any sensitive data over this socket !!!!
-    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-
-    return ctx
-
-
-key_map = {
+KEY_MAP = {
     'country_name': 'Country',
     'locality_name': 'Locality',
     'organization_name': 'Organization',
@@ -43,27 +37,18 @@ key_map = {
     # 'commonName': 'Common Name',
 }
 
-ctx = create_ssl_context()
+
+def create_ssl_context() -> ssl.SSLContext:
+    # upgrade the socket to SSL without checking the certificate
+    # !!!! don't transfer any sensitive data over this socket !!!!
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+
+    return ctx
 
 
-def key_algo(cert: Certificate):
-    pub_key: PublicKeyInfo = cert.public_key
-    # print(pub_key.native)
-
-    return f'{pub_key.algorithm.upper()}-{pub_key.bit_size}'
-
-
-def sig_algo(cert: Certificate):
-    """
-    :return:
-        A unicode string of "md2", "md5", "sha1", "sha224", "sha256",
-        "sha384", "sha512", "sha512_224", "sha512_256" or "shake256"
-    """
-    algorithm = cert['signature_algorithm']['algorithm'].native
-    return algorithm.upper().replace('_', 'WITH', 1)
-
-
-def set_expired(certs: 'CertDict | list[CertDict] | None'):
+def set_expired(certs: CertDict | list[CertDict] | None) -> None:
     """
     Set or update a value for ``Validity > Expired`` (:type:`bool`) on
     a :class:`CertDict` response
@@ -87,23 +72,72 @@ def set_expired(certs: 'CertDict | list[CertDict] | None'):
 
     today = datetime.utcnow().date()
 
-    for cert in certs:
-        if cert:
-            cert['Validity']['Expired'] = cert.not_after_date < today
+    for _cert in certs:
+        if _cert:
+            _cert['Validity']['Expired'] = _cert.not_after_date < today
 
+
+def _key_algo(cert: Certificate) -> str:
+    pub_key: PublicKeyInfo = cert.public_key
+    # print(pub_key.native)
+
+    return f'{pub_key.algorithm.upper()}-{pub_key.bit_size}'
+
+
+def _sig_algo(cert: Certificate) -> str:
+    """
+    :return:
+        A unicode string of "md2", "md5", "sha1", "sha224", "sha256",
+        "sha384", "sha512", "sha512_224", "sha512_256" or "shake256"
+    """
+    algorithm = cert['signature_algorithm']['algorithm'].native
+    return algorithm.upper().replace('_', 'WITH', 1)
+
+
+def _to_string(o, indent=2) -> str:
+    """Return a human-readable string with the (prettified) JSON string value"""
+    return dumps(o, indent=indent)
+
+
+### Models ###
 
 class CertDict(dict):
     _not_after_date: date
     _not_before_date: date
 
     @property
-    def not_after_date(self):
+    def not_after_date(self) -> date:
+        """The Cert *Not After* Date (e.g. Valid Until)"""
         return self._not_after_date
 
     @property
-    def not_before_date(self):
+    def not_before_date(self) -> date:
+        """The Cert *Not Before* Date (e.g. Valid From)"""
         return self._not_before_date
 
+    def __repr__(self, indent=2):
+        """
+        Return a human-readable string with the (prettified) JSON string value enclosed
+        in brackets, e.g.:
+
+        .. code:: text
+
+            CertDict(
+              {
+                ...
+              }
+            )
+
+        """
+        initial_space = ' ' * indent
+        json_string = '\n'.join([initial_space + line
+                                 for line in _to_string(self, indent=indent).splitlines()])
+        return f'{self.__class__.__name__}(\n{json_string}\n)'
+
+    __str__ = _to_string
+
+
+### Core functions ###
 
 def cert_please(hostname: str,
                 context: ssl.SSLContext = None,
@@ -113,46 +147,50 @@ def cert_please(hostname: str,
     Retrieve the SSL certificate for a given ``hostname`` - works even
     in the case of expired or self-signed certificates.
 
-    Usage::
+    Usage:
 
-    >>> import json
     >>> import cert_hero
     >>> cert = cert_hero.cert_please('google.com')
     >>> cert.not_after_date
     datetime.date(2023, 10, 28)
-    >>> print('Cert is Valid Till:', cert.not_after_date.isoformat())
-    Cert is Valid Till: 2023-10-28
-    >>> print(f'Cert Details:', json.dumps(_cert, indent=2), sep='\n')
-    Cert Details:
-    {
-      "Serial": "753DD6FF20CB1B4510CB4C1EA27DA2EB",
-      "Subject Name": {
-        "Common Name": "*.google.com"
-      },
-      "Issuer Name": {
-        "Country": "US",
-        "State/Province": "California",
-        "Organization": "Zscaler Inc.",
-        "Organization Unit": "Zscaler Inc.",
-        "Common Name": "Zscaler Intermediate Root CA (zscalerthree.net) (t) "
-      },
-      "Validity": {
-        "Not After": "2023-10-28",
-        "Not Before": "2023-10-14"
-      },
-      "Wildcard": true,
-      "Signature Algorithm": "SHA256WITHRSA",
-      "Key Algorithm": "RSA-2048",
-      "Subject Alt Names": [
-        "*.google.com",
-        "*.appengine.google.com",
-        "youtu.be",
-        "*.youtube.com",
-        ...
-      ],
-      "Location": "https://www.google.com/",
-      "Status": 301
-    }
+    >>> f'Cert is Valid Till: {cert.not_after_date.isoformat()}'
+    'Cert is Valid Till: 2023-10-28'
+    >>> cert
+    CertDict(
+      {
+        "Serial": "753DD6FF20CB1B4510CB4C1EA27DA2EB",
+        "Subject Name": {
+          "Common Name": "*.google.com"
+        },
+        "Issuer Name": {
+          "Country": "US",
+          "State/Province": "California",
+          "Organization": "Zscaler Inc.",
+          "Organization Unit": "Zscaler Inc.",
+          "Common Name": "Zscaler Intermediate Root CA (zscalerthree.net) (t) "
+        },
+        "Validity": {
+          "Not After": "2023-10-28",
+          "Not Before": "2023-10-14"
+        },
+        "Wildcard": true,
+        "Signature Algorithm": "SHA256WITHRSA",
+        "Key Algorithm": "RSA-2048",
+        "Subject Alt Names": [
+          "*.google.com",
+          "*.appengine.google.com",
+          "youtu.be",
+          "*.youtube.com",
+          ...
+        ],
+        "Location": "https://www.google.com/",
+        "Status": 301
+      }
+    )
+    >>> cert_hero.set_expired(cert)
+    >>> cert['Validity']
+    {'Not After': '2023-10-28', 'Not Before': '2023-10-14', 'Expired': False}
+
 
     Rationale:
 
@@ -168,6 +206,9 @@ def cert_please(hostname: str,
 
     But now we have to convert it, and thus we can use a third party ``asn1crypto`` module, instead of
     the (bulkier) ``cryptography`` module.
+
+    Additionally, if the host **redirects** the client to another URL, this info is
+    captured in the ``Location`` and ``Status`` fields.
 
     ..  _source: https://stackoverflow.com/a/74349032/10237506
     .. _self-signed certificate: https://stackoverflow.com/a/68889470/10237506
@@ -273,12 +314,12 @@ def cert_please(hostname: str,
                 'Serial': format(_cert.serial_number, 'X'),
                 'Subject Name': (
                     subject := {
-                        key_map.get(k, k): v
+                        KEY_MAP.get(k, k): v
                         for k, v in _cert.subject.native.items()
                     }
                 ),
                 'Issuer Name': {
-                    key_map.get(k, k): v for k, v in _cert.issuer.native.items()
+                    KEY_MAP.get(k, k): v for k, v in _cert.issuer.native.items()
                 },
                 'Validity': {
                     'Not After': (
@@ -289,8 +330,8 @@ def cert_please(hostname: str,
                     ).isoformat(),
                 },
                 'Wildcard': subject['Common Name'].startswith('*'),
-                'Signature Algorithm': sig_algo(_cert),
-                'Key Algorithm': key_algo(_cert),
+                'Signature Algorithm': _sig_algo(_cert),
+                'Key Algorithm': _key_algo(_cert),
             }
         )
 

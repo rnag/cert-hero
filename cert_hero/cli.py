@@ -1,7 +1,6 @@
 """Console script for cert_hero."""
 import argparse
 import sys
-from json import dumps
 
 from . import cert_please
 
@@ -14,9 +13,7 @@ def main():
 
     for host in args.hosts:
         cert = cert_please(host)
-        print(f'=== {host} ===')
-        print(dumps(cert))
-        print()
+        print(f'=== {host} ===\n{cert}\n')
 
     return 0
 

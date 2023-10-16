@@ -46,6 +46,9 @@ We can work around this by asking for the certificate in the binary form:
 But now we have to convert it, and thus we can use a third party ``asn1crypto`` module, instead of
 the (bulkier) ``cryptography`` module.
 
+Additionally, if the host **redirects** the client to another URL, this info is
+captured in the ``Location`` and ``Status`` fields.
+
 ..  _source: https://stackoverflow.com/a/74349032/10237506
 .. _self-signed certificate: https://stackoverflow.com/a/68889470/10237506
 
@@ -56,49 +59,57 @@ Retrieve the certificate for **host** ``google.com``:
 
 .. code:: python3
 
-    import json
     import cert_hero
 
     cert = cert_hero.cert_please('google.com')
 
     print('Cert is Valid Till:', cert.not_after_date.isoformat())
-    print(f'Cert Details:', json.dumps(cert, indent=2), sep='\n')
+
+    # To get the output as a JSON string, use `str(cert)` or remove `!r` from below
+    print(f'Cert -> \n{cert!r}')
+
+    cert_hero.set_expired(cert)
+    print(f'Validity ->\n{cert["Validity"]}')
 
 Output (Sample):
 
 .. code::
 
     Cert is Valid Till: 2023-10-28
-    Cert Details:
-    {
-      "Serial": "753DD6FF20CB1B4510CB4C1EA27DA2EB",
-      "Subject Name": {
-        "Common Name": "*.google.com"
-      },
-      "Issuer Name": {
-        "Country": "US",
-        "State/Province": "California",
-        "Organization": "Zscaler Inc.",
-        "Organization Unit": "Zscaler Inc.",
-        "Common Name": "Zscaler Intermediate Root CA (zscalerthree.net) (t) "
-      },
-      "Validity": {
-        "Not After": "2023-10-28",
-        "Not Before": "2023-10-14"
-      },
-      "Wildcard": true,
-      "Signature Algorithm": "SHA256WITHRSA",
-      "Key Algorithm": "RSA-2048",
-      "Subject Alt Names": [
-        "*.google.com",
-        "*.appengine.google.com",
-        "youtu.be",
-        "*.youtube.com",
-        ...
-      ],
-      "Location": "https://www.google.com/",
-      "Status": 301
-    }
+    Cert ->
+    CertDict(
+      {
+        "Serial": "753DD6FF20CB1B4510CB4C1EA27DA2EB",
+        "Subject Name": {
+          "Common Name": "*.google.com"
+        },
+        "Issuer Name": {
+          "Country": "US",
+          "State/Province": "California",
+          "Organization": "Zscaler Inc.",
+          "Organization Unit": "Zscaler Inc.",
+          "Common Name": "Zscaler Intermediate Root CA (zscalerthree.net) (t) "
+        },
+        "Validity": {
+          "Not After": "2023-10-28",
+          "Not Before": "2023-10-14"
+        },
+        "Wildcard": true,
+        "Signature Algorithm": "SHA256WITHRSA",
+        "Key Algorithm": "RSA-2048",
+        "Subject Alt Names": [
+          "*.google.com",
+          "*.appengine.google.com",
+          "youtu.be",
+          "*.youtube.com",
+          ...
+        ],
+        "Location": "https://www.google.com/",
+        "Status": 301
+      }
+    )
+    Validity ->
+    {'Not After': '2023-10-28', 'Not Before': '2023-10-14', 'Expired': False}
 
 Usage as a CLI
 --------------
