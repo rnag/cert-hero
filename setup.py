@@ -21,8 +21,11 @@ test_requires = [
     'pytest-runner==6.0.0',
 ]
 
-with (here / 'requirements-dev.txt').open() as requires_dev_txt:
-    dev_requires = [str(req) for req in parse_requirements(requires_dev_txt)]
+if (requires_dev_file := here / 'requirements-dev.txt').exists():
+    with requires_dev_file.open() as requires_dev_txt:
+        dev_requires = [str(req) for req in parse_requirements(requires_dev_txt)]
+else:   # Running on CI
+    dev_requires = []
 
 about = {}
 exec((here / package_name / '__version__.py').read_text(), about)
