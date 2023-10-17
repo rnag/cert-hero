@@ -4,9 +4,12 @@ from __future__ import annotations
 import ssl
 import socket
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, date
+from itertools import repeat
 from json import dumps
 from logging import getLogger
+from typing import Iterable
 
 from asn1crypto.x509 import Certificate
 from asn1crypto.keys import PublicKeyInfo
@@ -48,10 +51,10 @@ def create_ssl_context() -> ssl.SSLContext:
     return ctx
 
 
-def set_expired(certs: CertDict | list[CertDict] | None) -> None:
+def set_expired(certs: CertHero | dict[str, CertHero] | Iterable[CertHero] | None) -> None:
     """
     Set or update a value for ``Validity > Expired`` (:type:`bool`) on
-    a :class:`CertDict` response
+    a :class:`CertHero` response
     from :func:`cert_please()` or :func:`certs_please()`.
 
     Example Usage::
@@ -66,15 +69,30 @@ def set_expired(certs: CertDict | list[CertDict] | None) -> None:
     if not certs:
         return
 
-    if isinstance(certs, CertDict):
-        set_expired([certs])
-        return
+    # given a `CertHero` object
+    if isinstance(certs, CertHero):
+        certs = [certs]
+
+    # given a mapping of `hostname` to `CertHero` object
+    elif isinstance(certs, dict):
+        certs = certs.values()
 
     today = datetime.utcnow().date()
 
     for _cert in certs:
         if _cert:
-            _cert['Validity']['Expired'] = _cert.not_after_date < today
+            if _validity := _cert.get('Validity'):
+                _validity['Expired'] = _cert.not_after_date < today
+
+
+def _build_failed_cert(reason: str):
+    """
+    Build a :class:`CertHero` object for a failed connection or response, usually in the case of
+    an HTTP timeout or when the server does not have an SSL certificate.
+    """
+    _cert = CertHero({'Cert Status': reason})
+    _cert._not_after_date = _cert._not_before_date = date.min
+    return _cert
 
 
 def _key_algo(cert: Certificate) -> str:
@@ -94,14 +112,31 @@ def _sig_algo(cert: Certificate) -> str:
     return algorithm.upper().replace('_', 'WITH', 1)
 
 
-def _to_string(o, indent=2) -> str:
-    """Return a human-readable string with the (prettified) JSON string value"""
-    return dumps(o, indent=indent)
-
-
 ### Models ###
 
-class CertDict(dict):
+class CertHero(dict):
+    """
+    :class:`CertHero` represents the (resolved) SSL certificate of a server or hostname;
+    it subclasses from builtin :class:`dict`, so it is essentially the
+    same as a :class:`dict` object with convenience methods and a more human-readable
+    :meth:`__repr__` method, for example.
+
+    This means that a :class:`CertHero` object is inherently JSON serializable:
+
+    >>> import cert_hero, json
+    >>> cert = cert_hero.CertHero({'key': 'value'})
+    >>> cert
+    CertHero(
+      {
+        "key": "value"
+      }
+    )
+    >>> cert['key']
+    'value'
+    >>> json.dumps(cert)  # or, easier: str(cert)
+    '{"key": "value"}'
+
+    """
     _not_after_date: date
     _not_before_date: date
 
@@ -122,7 +157,7 @@ class CertDict(dict):
 
         .. code:: text
 
-            CertDict(
+            CertHero(
               {
                 ...
               }
@@ -130,11 +165,10 @@ class CertDict(dict):
 
         """
         initial_space = ' ' * indent
-        json_string = '\n'.join([initial_space + line
-                                 for line in _to_string(self, indent=indent).splitlines()])
-        return f'{self.__class__.__name__}(\n{json_string}\n)'
+        json_string = f'\n{initial_space}'.join(dumps(self, indent=indent).splitlines())
+        return f'{self.__class__.__name__}(\n{initial_space}{json_string}\n)'
 
-    __str__ = _to_string
+    __str__ = dumps
 
 
 ### Core functions ###
@@ -142,7 +176,7 @@ class CertDict(dict):
 def cert_please(hostname: str,
                 context: ssl.SSLContext = None,
                 default_encoding='latin-1',
-                ) -> CertDict[str, dict[str, str] | str | int] | None:
+                ) -> CertHero[str, str | int | dict[str, str]] | None:
     """
     Retrieve the SSL certificate for a given ``hostname`` - works even
     in the case of expired or self-signed certificates.
@@ -156,8 +190,9 @@ def cert_please(hostname: str,
     >>> f'Cert is Valid Till: {cert.not_after_date.isoformat()}'
     'Cert is Valid Till: 2023-10-28'
     >>> cert
-    CertDict(
+    CertHero(
       {
+        "Cert Status": "SUCCESS",
         "Serial": "753DD6FF20CB1B4510CB4C1EA27DA2EB",
         "Subject Name": {
           "Common Name": "*.google.com"
@@ -309,8 +344,9 @@ def cert_please(hostname: str,
         # pprint(_cert.native)
         # print(_cert.subject_alt_name_value.native)
 
-        cert_info = CertDict(
+        cert_info = CertHero(
             {
+                'Cert Status': 'SUCCESS',
                 'Serial': format(_cert.serial_number, 'X'),
                 'Subject Name': (
                     subject := {
@@ -329,7 +365,7 @@ def cert_please(hostname: str,
                         not_before_date := _cert.not_valid_before.date()
                     ).isoformat(),
                 },
-                'Wildcard': subject['Common Name'].startswith('*'),
+                'Wildcard': subject.get('Common Name', '').startswith('*'),
                 'Signature Algorithm': _sig_algo(_cert),
                 'Key Algorithm': _key_algo(_cert),
             }
@@ -345,6 +381,71 @@ def cert_please(hostname: str,
             cert_info['Location'] = loc
 
         if status_code:
-            cert_info['Status'] = status_code  # type: ignore
+            cert_info['Status'] = status_code
 
         return cert_info
+
+
+def certs_please(
+    hostnames: list[str] | tuple[str] | set[str],
+    context: ssl.SSLContext = None,
+    num_threads: int = 25,
+) -> dict[str, CertHero]:
+    """
+    Retrieve (concurrently) the SSL certificate(s) for a list of ``hostnames`` - works
+    even in the case of expired or self-signed certificates.
+
+    Usage:
+
+    >>> import cert_hero, json
+    >>> host_to_cert = cert_hero.certs_please(['google.com', 'cnn.com', 'www.yahoo.co.in', 'youtu.be'])
+    >>> cert_hero.set_expired(host_to_cert)
+    >>> host_to_cert
+    {'google.com': CertHero(
+      {
+        "Cert Status": "SUCCESS",
+        "Serial": "753DD6FF20CB1B4510CB4C1EA27DA2EB",
+        ...
+      }
+    ), 'cnn.com': CertHero(
+      {
+        "Cert Status": "SUCCESS",
+        "Serial": "7F2F3E5C350554D71A6784CCFE6E8315",
+        ...
+      }
+    ), ...
+    }
+    >>> json.dumps(host_to_cert)
+    {"google.com": {"Cert Status": "SUCCESS", ...}, "cnn.com": {"Cert Status": "SUCCESS", ...}, ...}
+
+    :param hostnames: List of hosts to retrieve SSL Certificate(s) for
+    :param context: (Optional) Shared SSL Context
+    :param num_threads: Max number of concurrent threads
+    :return: A mapping of ``hostname`` to the SSL Certificate (e.g. :class:`CertHero`) for that host
+
+    """
+
+    if context is None:
+        context = create_ssl_context()
+
+    if num_hosts := len(hostnames):
+        # We can use a with statement to ensure threads are cleaned up promptly
+        with ThreadPoolExecutor(
+            max_workers=min(num_hosts, num_threads)
+        ) as pool:
+            _host_to_cert = {
+                # TODO: Update to remove `or` once we finalize how to handle missing certs
+                host: cert_info or _build_failed_cert('TIMED_OUT')
+                for host, cert_info in zip(
+                    hostnames,
+                    pool.map(
+                        cert_please,
+                        hostnames,
+                        repeat(context),
+                    ),
+                )
+            }
+    else:
+        _host_to_cert = {}
+
+    return _host_to_cert

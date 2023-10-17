@@ -2,7 +2,7 @@
 import argparse
 import sys
 
-from . import cert_please
+from . import certs_please, set_expired
 
 
 def main():
@@ -11,9 +11,11 @@ def main():
     parser.add_argument('hosts', nargs='*')
     args = parser.parse_args()
 
-    for host in args.hosts:
-        cert = cert_please(host)
-        print(f'=== {host} ===\n{cert}\n')
+    host_to_cert = certs_please(args.hosts)
+    set_expired(host_to_cert)
+
+    for host, cert in host_to_cert.items():
+        print(f'=== {host} ===\n{cert!r}\n')
 
     return 0
 

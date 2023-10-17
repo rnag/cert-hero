@@ -13,8 +13,9 @@ Sample Usage:
     >>> f'Cert is Valid Till: {cert.not_after_date.isoformat()}'
     'Cert is Valid Till: 2023-10-28'
     >>> cert
-    CertDict(
+    CertHero(
       {
+        "Cert Status": "SUCCESS",
         "Serial": "753DD6FF20CB1B4510CB4C1EA27DA2EB",
         "Subject Name": {
           "Common Name": "*.google.com"
@@ -58,8 +59,9 @@ For full documentation and more advanced usage, please see
 __all__ = [
     # Core exports
     'cert_please',
+    'certs_please',
     # Models
-    'CertDict',
+    'CertHero',
     # Utilities
     'create_ssl_context',
     'set_expired',
@@ -67,7 +69,13 @@ __all__ = [
 
 import logging
 
-from .cert_hero import CertDict, cert_please, create_ssl_context, set_expired
+from .cert_hero import (
+    CertHero,
+    cert_please,
+    certs_please,
+    create_ssl_context,
+    set_expired,
+)
 
 # Set up logging to ``/dev/null`` like a library is supposed to.
 # http://docs.python.org/3.3/howto/logging.html#configuring-logging-for-a-library
