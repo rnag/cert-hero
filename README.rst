@@ -36,7 +36,7 @@ Python Stand-alone Library to Download the SSL Certificate for *Any Host™*
 * The *only* dependency is `asn1crypto`_ (with over 300 stars on GitHub), which is ~94% more lightweight and robust
   than a solution with `pyOpenSSL`_.
 
-* If host a *redirects* to another URL, this info is captured in ``Location`` and ``Status``.
+* If a host *redirects* to another URL, this info is captured in ``Location`` and ``Status``.
 
 * Convenience methods such as ``__repr__()`` to make output more human-readable.
 
