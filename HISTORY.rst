@@ -13,6 +13,7 @@ History
 * Add :meth:`CertHero.from_dict` to create a :class:`CertHero` from a ``dict`` object
   (unused for now).
 * Add integration tests to confirm the intended (correct) functionality.
+* Add a chart diagram for unzipped vs. zipped size comparisons between ``pyOpenSSL`` and ``asn1crypto``.
 
 0.2.0 (2023-10-17)
 ------------------
