@@ -46,7 +46,7 @@ Python Stand-alone Library to Download the SSL Certificate for *Any Host™*
 * `certs_please`_ - Retrieve (concurrently) the SSL certificate(s) for a list of hostnames.
 * `set_expired`_ - Helper function  to check (at runtime) if a cert is expired or not.
 
-.. _chart: https://github.com/rnag/cert-hero/blob/main/images/SizeComparison.png
+.. _chart: https://raw.githubusercontent.com/rnag/cert-hero/main/images/SizeComparison.png
 .. _ssl: https://docs.python.org/3/library/ssl.html
 .. _asn1crypto: https://pypi.org/project/asn1crypto
 .. _pyOpenSSL: https://pypi.org/project/pyOpenSSL/
