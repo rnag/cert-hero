@@ -51,11 +51,18 @@ def create_ssl_context() -> ssl.SSLContext:
     return ctx
 
 
-def set_expired(certs: CertHero | dict[str, CertHero] | Iterable[CertHero] | None) -> None:
+def set_expired(certs: CertHero
+                       | dict[str, str | int | dict[str, str | bool]]
+                       | dict[str, CertHero]
+                       | dict[str, dict[str, str | int | dict[str, str | bool]]]
+                       | Iterable[CertHero]
+                       | Iterable[dict[str, str | int | dict[str, str | bool]]]
+                       | None,
+                _date_from_iso_str=date.fromisoformat) -> None:
     """
-    Set or update a value for ``Validity > Expired`` (:type:`bool`) on
-    a :class:`CertHero` response
-    from :func:`cert_please()` or :func:`certs_please()`.
+    Set or update the value for ``Validity > Expired`` (:type:`bool`) on
+    each cert in a response from :func:`cert_please()` or :func:`certs_please()`,
+    or a serialized version thereof (e.g. ``json.dumps`` > ``json.loads``).
 
     Example Usage::
 
@@ -69,20 +76,24 @@ def set_expired(certs: CertHero | dict[str, CertHero] | Iterable[CertHero] | Non
     if not certs:
         return
 
-    # given a `CertHero` object
-    if isinstance(certs, CertHero):
+    # cert_please(): given a `CertHero` (or `CertHero`-like) object
+    if 'Serial' in certs:
         certs = [certs]
-
-    # given a mapping of `hostname` to `CertHero` object
-    elif isinstance(certs, dict):
-        certs = certs.values()
+    # certs_please(): given a mapping of `hostname` to `CertHero` (or `CertHero`-like) object
+    elif values_fn := getattr(certs, 'values', None):
+        certs = values_fn()
 
     today = datetime.utcnow().date()
 
     for _cert in certs:
         if _cert:
             if _validity := _cert.get('Validity'):
-                _validity['Expired'] = _cert.not_after_date < today
+                # Use cached attribute `not_after_date` if available (CertHero),
+                # else we calculate it on the fly in case of a `dict`.
+                not_after_date: date = getattr(_cert, '_not_after_date', None) \
+                                       or _date_from_iso_str(_validity['Not After'])
+                # Set the `Validity > Expired` value (bool)
+                _validity['Expired'] = not_after_date < today
 
 
 def _build_failed_cert(reason: str):
@@ -140,6 +151,17 @@ class CertHero(dict):
     _not_after_date: date
     _not_before_date: date
 
+    @classmethod
+    def from_dict(cls, o: dict, _from_iso_format=date.fromisoformat):
+        """Convert a serialized ``dict`` to a :class:`CertHero` object."""
+        obj = cls(o)
+
+        if validity := o.get('Validity'):
+            obj._not_after_date = _from_iso_format(validity['Not After'])
+            obj._not_before_date = _from_iso_format(validity['Not Before'])
+
+        return obj
+
     @property
     def not_after_date(self) -> date:
         """The Cert *Not After* Date (e.g. Valid Until)"""
@@ -176,7 +198,7 @@ class CertHero(dict):
 def cert_please(hostname: str,
                 context: ssl.SSLContext = None,
                 default_encoding='latin-1',
-                ) -> CertHero[str, str | int | dict[str, str]] | None:
+                ) -> CertHero[str, str | int | dict[str, str | bool]] | None:
     """
     Retrieve the SSL certificate for a given ``hostname`` - works even
     in the case of expired or self-signed certificates.
@@ -266,7 +288,7 @@ def cert_please(hostname: str,
                 wrap_socket.connect((hostname, 443))
 
                 # get certificate
-                cert_bin = wrap_socket.getpeercert(True)
+                cert_bin: bytes = wrap_socket.getpeercert(True)  # type: ignore
 
                 headers = (
                     f'GET / HTTP/1.0\r\n'

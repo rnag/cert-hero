@@ -30,13 +30,13 @@ Python Stand-alone Library to Download the SSL Certificate for *Any Host™*
 **Why Use?**
 
 * This library *always* returns the SSL certificate, if a server has one. This works for expired
-  and `self-signed certificate`_, whereas the builtin `ssl`_ library returns an empty ``dict`` if verification fails
+  and `self-signed certificate`_, whereas the builtin ``ssl`` library returns an empty ``dict`` if verification fails
   for any reason (source_).
 
 * The *only* dependency is `asn1crypto`_ (with over 300 stars on GitHub), which is ~94% more lightweight and robust
-  than a solution with `pyOpenSSL`_.
+  than a solution with `pyOpenSSL`_ (chart_).
 
-* If host a *redirects* to another URL, this info is captured in ``Location`` and ``Status``.
+* If a host *redirects* to another URL, this info is captured in ``Location`` and ``Status``.
 
 * Convenience methods such as ``__repr__()`` to make output more human-readable.
 
@@ -46,6 +46,7 @@ Python Stand-alone Library to Download the SSL Certificate for *Any Host™*
 * `certs_please`_ - Retrieve (concurrently) the SSL certificate(s) for a list of hostnames.
 * `set_expired`_ - Helper function  to check (at runtime) if a cert is expired or not.
 
+.. _chart: https://github.com/rnag/cert-hero/blob/main/images/SizeComparison.png
 .. _ssl: https://docs.python.org/3/library/ssl.html
 .. _asn1crypto: https://pypi.org/project/asn1crypto
 .. _pyOpenSSL: https://pypi.org/project/pyOpenSSL/
