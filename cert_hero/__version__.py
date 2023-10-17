@@ -5,7 +5,7 @@ Cert Hero - Python Stand-alone Library to Download the SSL Certificate for *Any 
 __title__ = 'cert-hero'
 __description__ = 'Python Stand-alone Library to Download the SSL Certificate for Any Host™'
 __url__ = 'https://github.com/rnag/cert-hero'
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 __author__ = 'Ritvik Nag'
 __author_email__ = 'rv.kvetch@gmail.com'
 __license__ = 'MIT'
