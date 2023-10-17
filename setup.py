@@ -31,13 +31,12 @@ about = {}
 exec((here / package_name / '__version__.py').read_text(), about)
 
 readme = (here / 'README.rst').read_text()
-history = (here / 'HISTORY.rst').read_text()
 
 setup(
     name=about['__title__'],
     version=about['__version__'],
     description=about['__description__'],
-    long_description=readme + '\n\n' + history,
+    long_description=readme,
     long_description_content_type='text/x-rst',
     author=about['__author__'],
     author_email=about['__author_email__'],
