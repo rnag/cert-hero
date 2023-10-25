@@ -2,6 +2,20 @@
 History
 =======
 
+0.4.0 (2023-10-27)
+------------------
+
+**Features and Improvements**
+
+* Previously, the *user agent* for making an HTTP request to retrieve the ``Location`` and ``Status``
+  was in the format of ``python-requests/{version}``. Now the process (in order) is as follows:
+
+  * use a custom ``user_agent``, if passed in
+  * use a random *user agent*, if the ``fake_useragent`` module is installed (e.g. via the ``fake-ua`` extra)
+  * use the default *user agent*, ``python-requests/{version}``
+
+* Add an optional extra ``fake-ua`` that pulls in ``fake_useragent`` module.
+
 0.3.0 (2023-10-17)
 ------------------
 

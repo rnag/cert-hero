@@ -41,6 +41,18 @@ KEY_MAP = {
 }
 
 
+try:
+    from fake_useragent import FakeUserAgent
+except ImportError:
+    def get_user_agent() -> str:
+        return 'python-requests/2.31.0'
+else:
+    _fake_ua = FakeUserAgent()
+
+    def get_user_agent() -> str:
+        return _fake_ua.__getattr__('random')
+
+
 def create_ssl_context() -> ssl.SSLContext:
     # upgrade the socket to SSL without checking the certificate
     # !!!! don't transfer any sensitive data over this socket !!!!
@@ -197,6 +209,7 @@ class CertHero(dict):
 
 def cert_please(hostname: str,
                 context: ssl.SSLContext = None,
+                user_agent: str | None = None,
                 default_encoding='latin-1',
                 ) -> CertHero[str, str | int | dict[str, str | bool]] | None:
     """
@@ -290,12 +303,21 @@ def cert_please(hostname: str,
                 # get certificate
                 cert_bin: bytes = wrap_socket.getpeercert(True)  # type: ignore
 
+                # use custom "user agent" if passed in, else:
+                #   * use a random "user agent", if the `fake_useragent` module is installed
+                #   * use the default "user agent" (python-requests)
+                if not user_agent:
+                    user_agent = get_user_agent()
+
+                LOG.debug('User Agent: %s', user_agent)
+
                 headers = (
                     f'GET / HTTP/1.0\r\n'
                     f'Host: {hostname}\r\n'
-                    'User-Agent: python-requests/2.22.0\r\n'
-                    'Accept-Encoding: gzip, deflate\r\nAccept: */*'
-                    '\r\n\r\n'
+                    f'User-Agent: {user_agent}\r\n'
+                    'Accept-Encoding: gzip, deflate\r\n'
+                    'Accept: */*\r\n'
+                    '\r\n'
                 )
                 # print("\n\n" + headers)
 
@@ -412,6 +434,7 @@ def certs_please(
     hostnames: list[str] | tuple[str] | set[str],
     context: ssl.SSLContext = None,
     num_threads: int = 25,
+    user_agent: str | None = None,
 ) -> dict[str, CertHero]:
     """
     Retrieve (concurrently) the SSL certificate(s) for a list of ``hostnames`` - works
@@ -464,6 +487,7 @@ def certs_please(
                         cert_please,
                         hostnames,
                         repeat(context),
+                        repeat(user_agent),
                     ),
                 )
             }
