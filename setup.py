@@ -67,13 +67,14 @@ setup(
         'Programming Language :: Python :: 3.12',
         'Programming Language :: Python',
     ],
-    python_requires='>=3.6',
+    python_requires='>=3.8',
     entry_points={
         'console_scripts': [
             'ch=cert_hero.cli:main',
         ],
     },
     extras_require={
+        'fake-ua': ['fake-useragent>=1.0.0,<2'],
         'dev': dev_requires,
     },
     test_suite='tests',

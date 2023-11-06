@@ -40,6 +40,25 @@ KEY_MAP = {
     # 'commonName': 'Common Name',
 }
 
+_DEFAULT_USER_AGENT: str | None
+
+try:
+    from fake_useragent import FakeUserAgent
+except ImportError:  # no such module (fake_useragent)
+    _DEFAULT_USER_AGENT = 'python-requests/2.31.0'
+
+    def get_user_agent() -> str:
+        """Return the default *user agent*."""
+        return _DEFAULT_USER_AGENT
+else:  # module is available (fake_useragent)
+    _DEFAULT_USER_AGENT = None
+
+    _FAKE_UA = FakeUserAgent()
+
+    def get_user_agent() -> str:
+        """Return a random *user agent* using the ``fake_useragent`` module."""
+        return _FAKE_UA.__getattr__('random')
+
 
 def create_ssl_context() -> ssl.SSLContext:
     # upgrade the socket to SSL without checking the certificate
@@ -197,6 +216,7 @@ class CertHero(dict):
 
 def cert_please(hostname: str,
                 context: ssl.SSLContext = None,
+                user_agent: str | None = _DEFAULT_USER_AGENT,
                 default_encoding='latin-1',
                 ) -> CertHero[str, str | int | dict[str, str | bool]] | None:
     """
@@ -270,6 +290,15 @@ def cert_please(hostname: str,
     ..  _source: https://stackoverflow.com/a/74349032/10237506
     .. _self-signed certificate: https://stackoverflow.com/a/68889470/10237506
 
+    :param hostname: Host (or server) to retrieve SSL Certificate for
+    :param context: (Optional) Shared SSL Context
+    :param user_agent: A custom *user agent* to use for the HTTP call to retrieve ``Location`` and ``Status``.
+      Defaults to ``python-requests/{version}``, or a random *user agent* if the ``fake_useragent`` module
+      is installed (via the ``fake-ua``
+      `extra <https://packaging.python.org/en/latest/tutorials/installing-packages/#installing-extras>`__).
+    :param default_encoding: Encoding used to decode bytes for the HTTP call to retrieve ``Location``
+      and ``Status``. Defaults to ``latin-1`` (or ISO-8859-1).
+
     """
     if context is None:
         context = create_ssl_context()
@@ -290,12 +319,21 @@ def cert_please(hostname: str,
                 # get certificate
                 cert_bin: bytes = wrap_socket.getpeercert(True)  # type: ignore
 
+                # use custom `user_agent` if passed in, else:
+                #   * use a random "user agent", if the `fake_useragent` module is installed,
+                #     else use the default "user agent" (python-requests)
+                if not user_agent:
+                    user_agent = get_user_agent()
+
+                LOG.debug('User Agent: %s', user_agent)
+
                 headers = (
                     f'GET / HTTP/1.0\r\n'
                     f'Host: {hostname}\r\n'
-                    'User-Agent: python-requests/2.22.0\r\n'
-                    'Accept-Encoding: gzip, deflate\r\nAccept: */*'
-                    '\r\n\r\n'
+                    f'User-Agent: {user_agent}\r\n'
+                    'Accept-Encoding: gzip, deflate\r\n'
+                    'Accept: */*\r\n'
+                    '\r\n'
                 )
                 # print("\n\n" + headers)
 
@@ -412,6 +450,7 @@ def certs_please(
     hostnames: list[str] | tuple[str] | set[str],
     context: ssl.SSLContext = None,
     num_threads: int = 25,
+    user_agent: str | None = _DEFAULT_USER_AGENT,
 ) -> dict[str, CertHero]:
     """
     Retrieve (concurrently) the SSL certificate(s) for a list of ``hostnames`` - works
@@ -443,6 +482,10 @@ def certs_please(
     :param hostnames: List of hosts to retrieve SSL Certificate(s) for
     :param context: (Optional) Shared SSL Context
     :param num_threads: Max number of concurrent threads
+    :param user_agent: A custom *user agent* to use for the HTTP call to retrieve ``Location`` and ``Status``.
+      Defaults to ``python-requests/{version}``, or a random *user agent* if the ``fake_useragent`` module
+      is installed (via the ``fake-ua``
+      `extra <https://packaging.python.org/en/latest/tutorials/installing-packages/#installing-extras>`__).
     :return: A mapping of ``hostname`` to the SSL Certificate (e.g. :class:`CertHero`) for that host
 
     """
@@ -464,6 +507,7 @@ def certs_please(
                         cert_please,
                         hostnames,
                         repeat(context),
+                        repeat(user_agent),
                     ),
                 )
             }
